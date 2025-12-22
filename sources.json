@@ -1,0 +1,40 @@
+{
+    "whitelist": [
+        "gouv.bj",
+        "srtb.bj",
+        "lanation.bj",
+        "bj.usembassy.gov",
+        "banouto.bj",
+        "lematinal.bj",
+        "24haubenin.info",
+        "rfi.fr",
+        "france24.com",
+        "lemonde.fr",
+        "afp.com",
+        "reuters.com",
+        "who.int",
+        "matinlibre.com",
+        "beninwebtv.com",
+        "courrierinternational.com",
+        "jeuneafrique.com",
+        "levenementprecis.com",
+        "fraternitebj.info",
+        "lanouvelletribune.info",
+        "bbc.com",
+        "ortb.bj"
+    ],
+    "blacklist": [
+        "legorafi.fr",
+        "nordpresse.be",
+        "secretnews.fr",
+        "sante-nutrition.org",
+        "infowars.com",
+        "reseauinternational.net",
+        "lesmoutonsrebelles.com",
+        "actubuzz24.com",
+        "stateofthenation.co",
+        "beforeitsnews.com",
+        "naturalnews.com",
+        "scienceinfo.fr"
+    ]
+}
