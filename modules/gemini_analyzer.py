@@ -1,98 +1,102 @@
-import os
-import google.generativeai as genai
-from dotenv import load_dotenv
+from google import genai
+from google.genai import types
 import json
-
-# Chargement des variables d'environnement
-load_dotenv()
+import re # On ajoute les expressions régulières pour nettoyer
 
 def analyze_text_semantics(text, api_key):
     """
-    Analyse un texte pour détecter les marqueurs de désinformation via Google Gemini.
+    Analyse sémantique ROBUSTE.
+    Corrige automatiquement les erreurs de syntaxe JSON de l'IA.
     """
-    genai.configure(api_key=api_key)
-    
-    # Liste des modèles à tester par ordre de préférence (Mise à jour selon disponibilité utilisateur)
-    models_to_try = [
-        'gemini-2.0-flash', 
-        'gemini-2.5-flash',
-        'gemini-flash-latest'
-    ]
-    
-    selected_model = None
-    response = None
-    error_log = []
+    if not api_key:
+        return {"error": "Clé API manquante"}
 
-    prompt = f"""
-    Tu es un expert en analyse linguistique et détection de désinformation pour le projet FAKELAB.
-    
-    Analyse le texte suivant : "{text}"
-    
-    Concentre-toi sur ces 3 marqueurs stylistiques précis :
-    1. Subjectivité excessive : Usage abusif d'adjectifs émotionnels (peur, colère, indignation).
-    2. Syntaxe "Clickbait" : Titres en majuscules, ponctuation excessive (!!!), formules racoleuses.
-    3. Absence de preuves : Affirmations péremptoires non sourcées, généralisations hâtives.
-    
-    Réponds UNIQUEMENT au format JSON strict avec la structure suivante :
+    # 1. Configuration Client
+    try:
+        client = genai.Client(api_key=api_key)
+    except Exception as e:
+        return {"error": f"Erreur Client Google : {str(e)}"}
+
+    # 2. Prompt
+    prompt = f """
+    Tu es l'IA du projet FAKELAB.
+    Analyse ce texte : "{text}"
+
+    Note sur 10 (10 = TRES SUSPECT/FAUX) :
+    1. Subjectivité
+    2. Clickbait
+    3. Absence de preuves (score_manque_preuves)
+
+    Réponds UNIQUEMENT au format JSON strict (sans Markdown) :
     {{
-        "analyse_subjectivite": {{
-            "score": <note sur 10>,
-            "details": "<observation courte>"
-        }},
-        "analyse_clickbait": {{
-            "score": <note sur 10>,
-            "details": "<observation courte>"
-        }},
-        "analyse_preuves": {{
-            "score_fiabilite": <note sur 10>,
-            "details": "<observation courte>"
-        }},
-        "synthese_globale": "<Phrase de résumé sur la crédibilité du style>",
-        "verdict_style": "<FIABLE | DOUTEUX | TROMPEUR>"
+        "analyse_subjectivite": {{ "score": 0, "details": "..." }},
+        "analyse_clickbait": {{ "score": 0, "details": "..." }},
+        "analyse_preuves": {{ "score_manque_preuves": 0, "details": "..." }},
+        "synthese_globale": "...",
+        "verdict_style": "DOUTEUX"
     }}
     """
 
-    for model_name in models_to_try:
-        try:
-            model = genai.GenerativeModel(model_name)
-            response = model.generate_content(prompt)
-            # Si on arrive ici, ça a marché
-            selected_model = model_name
-            break 
-        except Exception as e:
-            error_log.append(f"Modèle '{model_name}' échoué : {str(e)}")
-            continue
-
-    if not response and error_log:
-        return {
-            "error": "Impossible de contacter l'IA.",
-            "details": error_log,
-            "help": "Vérifiez votre clé API ou les modèles disponibles."
-        }
+    
+    # 3. Appel IA (Utilisation du modèle stable 2.0)
+    # J'ai retiré "2.5" qui n'existe pas et peut causer des bugs
+    model_id = "gemini-2.0-flash" 
 
     try:
-        # Nettoyage pour récupérer le JSON pur
-        clean_json = response.text.replace('```json', '').replace('```', '').strip()
-        data = json.loads(clean_json)
-
-        #  --- CALCUL DU SCORE GLOBAL MANQUE DE PREUVES ---
-        score_subjectivite = data['analyse_subjectivite']['score']
-        score_clickbait = data['analyse_clickbait']['score']
-        score_absence_preuves = data['analyse_preuves']['score_fiabilite']
-
-        score_manque_preuves = round(
-            (score_subjectivite + score_clickbait + score_absence_preuves) / 3, 2
+        response = client.models.generate_content(
+            model=model_id,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.1 # Créativité faible pour éviter les erreurs de format
+            )
         )
+    except Exception as e:
+        # Si le 2.0 échoue, on tente le 1.5 qui est très fiable
+        try:
+            model_id = "gemini-1.5-flash"
+            response = client.models.generate_content(
+                model=model_id,
+                contents=prompt,
+                config=types.GenerateContentConfig(response_mime_type="application/json")
+            )
+        except Exception as e2:
+             return {"error": f"Erreur IA totale : {str(e2)}"}
 
-        # Injection du score calculé
-        data['analyse_preuves']['score_manque_preuves'] = score_manque_preuves
+    # 4. Nettoyage et Parsing (La partie qui corrige ton erreur)
+    try:
+        json_text = response.text
+        
+        # Nettoyage brutal des balises Markdown (```json)
+        json_text = json_text.replace("```json", "").replace("```", "").strip()
+        
+        # TENTATIVE DE PARSING
+        data = json.loads(json_text)
+        data['modele_utilise'] = model_id
 
-        # Métadonnée modèle
-        data['modele_utilise'] = selected_model
+        # --- Calculs ---
+        s1 = data.get('analyse_subjectivite', {}).get('score', 5)
+        s2 = data.get('analyse_clickbait', {}).get('score', 5)
+        
+        s3 = 5
+        if 'analyse_preuves' in data:
+            if 'score_manque_preuves' in data['analyse_preuves']:
+                s3 = data['analyse_preuves']['score_manque_preuves']
+            elif 'score_fiabilite' in data['analyse_preuves']:
+                s3 = 10 - data['analyse_preuves']['score_fiabilite']
+                data['analyse_preuves']['score_manque_preuves'] = s3
+
+        moyenne = (s1 + s2 + s3) / 3
+        data['A_sem'] = round(moyenne * 10, 1)
 
         return data
 
-    except Exception as e:
+    except json.JSONDecodeError as e:
+        # C'est ici que ton erreur "Expecting ','" est attrapée
+        print(f"⚠️ JSON malformé reçu : {json_text}")
         return {
-        "error": f"Erreur de lecture ou de calcul IA ({selected_model}) : {str(e)}"
-    }
+            "error": "L'IA a généré une réponse mal formatée. Veuillez relancer l'analyse.",
+            "details_technique": str(e)
+        }
+    except Exception as e:
+        return {"error": f"Erreur interne : {str(e)}"}
