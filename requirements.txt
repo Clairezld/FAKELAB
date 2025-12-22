@@ -1,12 +1,6 @@
 streamlit
 python-dotenv
-google-genai
-newspaper3k
+google-generativeai
 requests
-selenium
-webdriver-manager
-wikipedia-api
-tldextract
-trafilatura
-readability-lxml
-lxml_html_clean
+beautifulsoup4
+lxml
