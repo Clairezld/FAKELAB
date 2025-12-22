@@ -18,7 +18,7 @@ def analyze_text_semantics(text, api_key):
         return {"error": f"Erreur Client Google : {str(e)}"}
 
     # 2. Prompt
-    prompt = f """
+    prompt = f"""
     Tu es l'IA du projet FAKELAB.
     Analyse ce texte : "{text}"
 
@@ -37,7 +37,6 @@ def analyze_text_semantics(text, api_key):
     }}
     """
 
-    
     # 3. Appel IA (Utilisation du modèle stable 2.0)
     # J'ai retiré "2.5" qui n'existe pas et peut causer des bugs
     model_id = "gemini-2.0-flash" 
