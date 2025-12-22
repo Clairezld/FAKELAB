@@ -1,4 +1,4 @@
-streamlitstreamlit
+streamlit
 python-dotenv
 google-generativeai
 newspaper3k
@@ -10,3 +10,4 @@ wikipedia-api
 tldextract
 trafilatura
 readability-lxml
+
